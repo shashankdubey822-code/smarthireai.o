@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SmartHire AI</title>
+  <link rel="stylesheet" href="style.css">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
+</head>
+
+<body>
+  <main class="app">
+
+    <!-- ===== TAB NAVIGATION ===== -->
+    <nav class="tab-nav" role="tablist" aria-label="Main navigation">
+      <button class="tab-btn active" data-tab="analyzer" role="tab" aria-selected="true" id="tab-analyzer">
+        <span class="material-symbols-rounded">description</span>
+        JD Analyzer
+      </button>
+      <button class="tab-btn" data-tab="dashboard" role="tab" aria-selected="false" id="tab-dashboard">
+        <span class="material-symbols-rounded">dashboard</span>
+        Dashboard
+      </button>
+    </nav>
+
+    <!-- ===== JD ANALYZER TAB ===== -->
+    <div id="analyzerTab" class="tab-panel active" role="tabpanel" aria-labelledby="tab-analyzer">
+      <header class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">SmartHire AI Platform</p>
+          <h1>Advanced Job Description Intelligence</h1>
+          <p class="hero-subtitle">
+            Upload or paste a JD, extract structured hiring signals, and track quality with a professional analysis
+            workflow.
+          </p>
+        </div>
+        <div class="hero-tags" aria-label="Capabilities">
+          <span>Fast parsing</span>
+          <span>Deep normalization</span>
+          <span>Hiring quality insights</span>
+        </div>
+      </header>
+
+      <section class="panel upload-section">
+        <div class="panel-head">
+          <h2>Input Workspace</h2>
+          <p>Drop a file or paste text, then run analysis.</p>
+        </div>
+
+        <div id="dropZone" class="drop-zone" role="button" tabindex="0" aria-label="Upload JD file(s) or folder">
+          <input type="file" id="fileUpload" accept=".pdf,.docx,.txt" multiple hidden>
+          <input type="file" id="folderUpload" webkitdirectory multiple hidden>
+
+          <div class="drop-zone-icon">
+            <span class="material-symbols-rounded">cloud_upload</span>
+          </div>
+
+          <p class="drop-title">Drag & drop JD files or folders</p>
+          <p class="drop-subtitle">Recursively scans folders for all supported files</p>
+
+          <div class="drop-formats">
+            <span class="format-badge pdf"><span class="material-symbols-rounded">picture_as_pdf</span> PDF</span>
+            <span class="format-badge docx"><span class="material-symbols-rounded">description</span> DOCX</span>
+            <span class="format-badge txt"><span class="material-symbols-rounded">text_snippet</span> TXT</span>
+          </div>
+
+          <div class="drop-btn-row">
+            <button id="browseBtn" type="button" class="drop-browse-btn">
+              <span class="material-symbols-rounded">file_open</span> Choose Files
+            </button>
+            <button id="folderBrowseBtn" type="button" class="drop-folder-btn">
+              <span class="material-symbols-rounded">folder_open</span> Choose Folder
+            </button>
+          </div>
+
+          <p id="selectedFile" class="file-meta">No file selected</p>
+        </div>
+
+        <label for="jobDescription" class="field-label">Job Description Text</label>
+        <textarea id="jobDescription" placeholder="Extracted text or manually pasted JD appears here..."></textarea>
+
+        <div class="input-meta">
+          <span id="charCount">0 characters</span>
+          <span>Shortcut: Ctrl + Enter to analyze</span>
+        </div>
+
+        <div class="cta-row">
+          <button id="analyzeBtn" class="analyze-btn" type="button">Run Analysis</button>
+          <div id="loader" class="hidden" role="status" aria-live="polite">Analyzing job description...</div>
+        </div>
+
+        <div id="apiStatus" class="api-status hidden" role="status" aria-live="polite"></div>
+
+        <div class="upload-actions">
+          <a href="https://docs.google.com/spreadsheets/d/15sg6jNezpFpz7v-vrtFH2_vBnr8NqHNp10gK-rZrRpM/edit"
+            target="_blank" rel="noopener" class="analyze-btn"
+            style="text-decoration:none; display:inline-flex; align-items:center; gap:8px;">
+            <span class="material-symbols-rounded">open_in_new</span> View Google Sheet
+          </a>
+          <button id="clearHistoryBtn" class="secondary-btn danger" type="button">Clear History</button>
+        </div>
+
+        <div class="history-panel">
+          <div class="history-head">
+            <h3>Recent Analyses</h3>
+            <span id="historyCount">0 saved</span>
+          </div>
+          <div id="historyList" class="history-list">
+            <p class="history-empty">No analyses saved yet. Run at least one analysis to build history.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="batchPanel" class="panel batch-panel hidden">
+        <div class="batch-head">
+          <div>
+            <h2>Batch Results</h2>
+            <p id="batchSummary">Upload multiple JDs and run analysis to see detailed file status here.</p>
+          </div>
+          <span id="batchCount">0 files</span>
+        </div>
+
+        <div class="batch-table-wrap">
+          <table class="batch-table">
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Status</th>
+                <th>Company</th>
+                <th>Role</th>
+                <th>Confidence</th>
+                <th>Error</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="batchTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="result" class="result-section hidden">
+
+        <!-- Row 1: Company Header Card -->
+        <article class="result-header-card">
+          <div class="result-header-left">
+            <span class="result-company-icon material-symbols-rounded">apartment</span>
+            <div>
+              <h2 id="companyName" class="result-company-name">—</h2>
+              <p class="result-role-line"><span id="role">—</span> <span class="result-divider">•</span> <span
+                  id="seniority">—</span></p>
+            </div>
+          </div>
+          <div class="result-header-right">
+            <span class="result-badge cycle" id="campusPlacementYear">—</span>
+            <small id="generatedBy" class="result-model-tag"></small>
+          </div>
+        </article>
+
+        <!-- Row 2: Key Info Grid -->
+        <div class="result-info-grid">
+          <article class="result-info-tile">
+            <span class="material-symbols-rounded tile-icon">payments</span>
+            <div class="tile-body">
+              <span class="tile-label">CTC</span>
+              <span class="tile-value" id="ctc">—</span>
+            </div>
+          </article>
+          <article class="result-info-tile">
+            <span class="material-symbols-rounded tile-icon">location_on</span>
+            <div class="tile-body">
+              <span class="tile-label">Location</span>
+              <span class="tile-value" id="location">—</span>
+            </div>
+          </article>
+          <article class="result-info-tile">
+            <span class="material-symbols-rounded tile-icon">work_history</span>
+            <div class="tile-body">
+              <span class="tile-label">Experience</span>
+              <span class="tile-value" id="experience">—</span>
+            </div>
+          </article>
+          <article class="result-info-tile">
+            <span class="material-symbols-rounded tile-icon">verified</span>
+            <div class="tile-body">
+              <span class="tile-label">Eligibility</span>
+              <span class="tile-value" id="eligibilityCriteria">—</span>
+            </div>
+          </article>
+          <article class="result-info-tile">
+            <span class="material-symbols-rounded tile-icon">speed</span>
+            <div class="tile-body">
+              <span class="tile-label">Complexity</span>
+              <span class="tile-value" id="complexity">—</span>
+            </div>
+          </article>
+          <article class="result-info-tile">
+            <span class="material-symbols-rounded tile-icon">work_outline</span>
+            <div class="tile-body">
+              <span class="tile-label">Position Type</span>
+              <span class="tile-value" id="positionType">—</span>
+            </div>
+          </article>
+           <article class="result-info-tile">
+            <span class="material-symbols-rounded tile-icon">category</span>
+            <div class="tile-body">
+              <span class="tile-label">Category</span>
+              <span class="tile-value" id="category">—</span>
+            </div>
+          </article>
+          <article class="result-info-tile tile-school" id="targetSchoolTile">
+            <span class="material-symbols-rounded tile-icon">school</span>
+            <div class="tile-body">
+              <span class="tile-label">Target School</span>
+              <span class="tile-value" id="targetSchool">—</span>
+            </div>
+          </article>
+        </div>
+
+        <!-- Row 2.5: Course Intelligence Card -->
+        <article class="result-card course-intelligence-card" id="courseIntelligenceSection">
+          <h3><span class="material-symbols-rounded">school</span> Course &amp; School Alignment</h3>
+          <p class="course-intel-subtitle">Categorizing eligible courses and degrees to their respective university schools:</p>
+          <div id="courseSchoolMappingContainer" class="course-school-mapping-grid">
+            <p class="history-empty">Awaiting analysis</p>
+          </div>
+        </article>
+
+        <!-- Row 3: Skills + Quality side-by-side -->
+        <div class="result-two-col">
+          <article class="result-card skills-detail-card">
+            <h3><span class="material-symbols-rounded">code</span> Core Skills</h3>
+            <div id="coreSkills" class="skill-chip-wrap"><span class="skill-chip soft">Awaiting analysis</span></div>
+            <h3 style="margin-top:18px;"><span class="material-symbols-rounded">build</span> Tools &amp; Technologies
+            </h3>
+            <div id="tools" class="skill-chip-wrap"><span class="skill-chip soft">Awaiting analysis</span></div>
+          </article>
+
+          <article class="quality-card">
+            <h3><span class="material-symbols-rounded">monitoring</span> Quality Panel</h3>
+            <div class="quality-metric">
+              <span>Confidence Score</span>
+              <strong id="confidenceScore">—%</strong>
+            </div>
+            <div class="progress-track"><span id="confidenceBar"></span></div>
+            <div class="quality-metric">
+              <span>JD Completeness</span>
+              <strong id="jdCompleteness">—%</strong>
+            </div>
+            <div class="progress-track"><span id="completenessBar"></span></div>
+            <h4>Missing Info</h4>
+            <ul id="missingFields" class="missing-fields">
+              <li>Run analysis to view quality details.</li>
+            </ul>
+          </article>
+        </div>
+
+        <!-- Row 4: Skill priority split + Chart -->
+        <div class="result-two-col">
+          <article class="skills-card">
+            <h3>Must-Have Skills</h3>
+            <div id="mandatorySkills" class="skill-chip-wrap"><span class="skill-chip soft">Awaiting analysis</span>
+            </div>
+            <h3 style="margin-top:18px;">Nice-to-Have Skills</h3>
+            <div id="optionalSkills" class="skill-chip-wrap"><span class="skill-chip soft">Awaiting analysis</span>
+            </div>
+          </article>
+
+          <article class="chart-card" style="padding:20px;">
+            <canvas id="skillChart"></canvas>
+          </article>
+        </div>
+
+        <!-- Row 5: AI Summary -->
+        <article class="result-card summary-card">
+          <h3><span class="material-symbols-rounded">psychology</span> AI Summary</h3>
+          <p id="summary" class="summary-text">No summary generated yet.</p>
+        </article>
+
+        <!-- Row 6: Market Intelligence -->
+        <article class="insights-card">
+          <h3><span class="material-symbols-rounded">insights</span> Market Intelligence</h3>
+          <div class="insights-grid">
+            <section class="insight-block">
+              <h4>Salary Insights</h4>
+              <p id="salaryInsights">Awaiting analysis</p>
+            </section>
+            <section class="insight-block">
+              <h4>Skill Trend Insights</h4>
+              <p id="skillTrendInsights">Awaiting analysis</p>
+            </section>
+            <section class="insight-block">
+              <h4>Placement Difficulty</h4>
+              <p id="placementDifficultyScore">Awaiting analysis</p>
+            </section>
+            <section class="insight-block">
+              <h4>Market Summary</h4>
+              <p id="marketSummary">Awaiting analysis</p>
+            </section>
+          </div>
+        </article>
+
+      </section>
+    </div><!-- /analyzerTab -->
+
+    <!-- ===== DASHBOARD TAB ===== -->
+    <div id="dashboardTab" class="tab-panel" role="tabpanel" aria-labelledby="tab-dashboard">
+
+      <!-- Hero -->
+      <header class="dash-hero">
+        <div class="dash-hero-copy">
+          <p class="eyebrow">Application Tracker</p>
+          <h1>Placement Dashboard</h1>
+          <p class="hero-subtitle">Visual analytics from your automated Google Sheets pipeline — </p>
+        </div>
+        <div class="dash-hero-actions">
+          <span id="liveDot" class="live-dot live" title="Auto-refresh active"></span>
+          <span id="lastUpdated" class="last-updated">Waiting for data…</span>
+          <button id="toggleAutoRefresh" class="auto-refresh-btn active" type="button">Auto-refresh ON</button>
+          <button id="refreshDashboard" class="analyze-btn" type="button">
+            <span class="material-symbols-rounded">refresh</span> Refresh Data
+          </button>
+          <button id="clearDashboard" class="analyze-btn" type="button"
+            style="background:linear-gradient(135deg,#dc2626,#b91c1c);margin-left:4px">
+            <span class="material-symbols-rounded">delete_sweep</span> Clear All Data
+          </button>
+        </div>
+      </header>
+
+      <!-- Loading Overlay -->
+      <div id="dashLoading" class="dash-loading">
+        <div class="dash-spinner"></div>
+        <p>Fetching live data from Google Sheets…</p>
+      </div>
+
+      <!-- Error Banner -->
+      <div id="dashError" class="dash-error hidden">
+        <span class="material-symbols-rounded">error</span>
+        <span class="dash-error-msg">Failed to load data.</span>
+        <button id="dashRetryBtn" class="secondary-btn" type="button">Retry</button>
+      </div>
+
+      <!-- KPI Cards -->
+      <section class="kpi-row">
+        <div class="kpi-card kpi-clickable" id="kpiTotal" role="button" tabindex="0"
+          title="Click to view all applications">
+          <span class="kpi-icon material-symbols-rounded">work</span>
+          <div class="kpi-body">
+            <span class="kpi-value" id="kpiTotalValue">0</span>
+            <span class="kpi-label">Total Applications</span>
+          </div>
+          <span class="kpi-click-hint material-symbols-rounded">open_in_new</span>
+        </div>
+        <div class="kpi-card kpi-clickable" id="kpiCompanies" role="button" tabindex="0"
+          title="Click to view unique companies">
+          <span class="kpi-icon material-symbols-rounded">apartment</span>
+          <div class="kpi-body">
+            <span class="kpi-value" id="kpiCompaniesValue">0</span>
+            <span class="kpi-label">Unique Companies</span>
+          </div>
+          <span class="kpi-click-hint material-symbols-rounded">open_in_new</span>
+        </div>
+        <div class="kpi-card kpi-clickable" id="kpiRoles" role="button" tabindex="0" title="Click to view unique roles">
+          <span class="kpi-icon material-symbols-rounded">badge</span>
+          <div class="kpi-body">
+            <span class="kpi-value" id="kpiRolesValue">0</span>
+            <span class="kpi-label">Unique Roles</span>
+          </div>
+          <span class="kpi-click-hint material-symbols-rounded">open_in_new</span>
+        </div>
+        <div class="kpi-card kpi-clickable" id="kpiSeniority" role="button" tabindex="0"
+          title="Click to view seniority breakdown">
+          <span class="kpi-icon material-symbols-rounded">trending_up</span>
+          <div class="kpi-body">
+            <span class="kpi-value" id="kpiSeniorityValue">—</span>
+            <span class="kpi-label">Top Seniority</span>
+          </div>
+          <span class="kpi-click-hint material-symbols-rounded">open_in_new</span>
+        </div>
+      </section>
+
+      <!-- KPI Detail Modal -->
+      <div id="kpiModal" class="kpi-modal-overlay hidden" role="dialog" aria-modal="true">
+        <div class="kpi-modal">
+          <header class="kpi-modal-header">
+            <h3 id="kpiModalTitle">Details</h3>
+            <button id="kpiModalClose" class="kpi-modal-close" aria-label="Close">&times;</button>
+          </header>
+          <div id="kpiModalBody" class="kpi-modal-body"></div>
+        </div>
+      </div>
+
+      <!-- Chart Grid -->
+      <section class="chart-grid">
+        <article class="dash-chart-card wide">
+          <h3>Applications Over Time</h3>
+          <canvas id="timelineChart"></canvas>
+        </article>
+        <article class="dash-chart-card">
+          <h3>Company Distribution</h3>
+          <canvas id="companyChart"></canvas>
+        </article>
+        <article class="dash-chart-card">
+          <h3>Seniority Breakdown</h3>
+          <canvas id="seniorityChart"></canvas>
+        </article>
+        <article class="dash-chart-card">
+          <h3>School Distribution</h3>
+          <canvas id="schoolChart"></canvas>
+        </article>
+        <article class="dash-chart-card">
+          <h3>Role Distribution</h3>
+          <canvas id="roleChart"></canvas>
+        </article>
+        <article class="dash-chart-card">
+          <h3>CTC Distribution (Top 10)</h3>
+          <canvas id="ctcChart"></canvas>
+        </article>
+        <article class="dash-chart-card">
+          <h3>Top Skills Demanded</h3>
+          <canvas id="skillsChart"></canvas>
+        </article>
+      </section>
+
+
+      <!-- ═══════════════════════════════════════════════════════
+           SCHOOL SPOTLIGHT PANEL
+           Slides in when a school pill is selected.
+           ═══════════════════════════════════════════════════════ -->
+      <section id="schoolSpotlight" class="school-spotlight hidden">
+
+        <!-- Header bar -->
+        <div class="spotlight-header" id="spotlightHeader">
+          <div class="spotlight-title-group">
+            <span class="material-symbols-rounded spotlight-icon" id="spotlightIcon">school</span>
+            <div>
+              <h2 class="spotlight-name" id="spotlightName">School of Engineering (SOE)</h2>
+              <p class="spotlight-subtitle" id="spotlightSubtitle">Showing all placement data for this school</p>
+            </div>
+          </div>
+          <button id="closeSpotlight" class="spotlight-close" title="Back to all schools">
+            <span class="material-symbols-rounded">close</span> Back to All
+          </button>
+        </div>
+
+        <!-- KPI strip -->
+        <div class="spotlight-kpis" id="spotlightKpis">
+          <div class="sp-kpi">
+            <span class="sp-kpi-val" id="spTotal">0</span>
+            <span class="sp-kpi-lbl">Total JDs</span>
+          </div>
+          <div class="sp-kpi">
+            <span class="sp-kpi-val" id="spCompanies">0</span>
+            <span class="sp-kpi-lbl">Companies</span>
+          </div>
+          <div class="sp-kpi">
+            <span class="sp-kpi-val" id="spRoles">0</span>
+            <span class="sp-kpi-lbl">Unique Roles</span>
+          </div>
+          <div class="sp-kpi">
+            <span class="sp-kpi-val" id="spAvgCtc">—</span>
+            <span class="sp-kpi-lbl">Avg CTC</span>
+          </div>
+          <div class="sp-kpi">
+            <span class="sp-kpi-val" id="spHighestCtc">—</span>
+            <span class="sp-kpi-lbl">🏆 Highest Pkg</span>
+          </div>
+          <div class="sp-kpi">
+            <span class="sp-kpi-val" id="spTopSeniority">—</span>
+            <span class="sp-kpi-lbl">Top Seniority</span>
+          </div>
+          <div class="sp-kpi">
+            <span class="sp-kpi-val" id="spShare">0%</span>
+            <span class="sp-kpi-lbl">of All JDs</span>
+          </div>
+        </div>
+
+        <!-- 3-column chart row -->
+        <div class="spotlight-charts">
+          <div class="sp-chart-card">
+            <h4><span class="material-symbols-rounded">work</span> Top Roles</h4>
+            <canvas id="spRoleChart"></canvas>
+          </div>
+          <div class="sp-chart-card">
+            <h4><span class="material-symbols-rounded">psychology</span> Top Skills</h4>
+            <canvas id="spSkillsChart"></canvas>
+          </div>
+          <div class="sp-chart-card">
+            <h4><span class="material-symbols-rounded">business</span> Top Companies</h4>
+            <canvas id="spCompanyChart"></canvas>
+          </div>
+        </div>
+
+        <!-- CTC + Seniority row -->
+        <div class="spotlight-charts spotlight-charts-2col">
+          <div class="sp-chart-card">
+            <h4><span class="material-symbols-rounded">payments</span> CTC Distribution</h4>
+            <canvas id="spCtcChart"></canvas>
+          </div>
+          <div class="sp-chart-card">
+            <h4><span class="material-symbols-rounded">leaderboard</span> Seniority Breakdown</h4>
+            <canvas id="spSeniorityChart"></canvas>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Data Table -->
+      <section class="dash-table-section">
+        <div class="dash-table-head">
+          <h3>All Applications</h3>
+          <div class="dash-table-controls">
+            <div class="search-box">
+              <span class="material-symbols-rounded">search</span>
+              <input type="text" id="dashSearch" placeholder="Search company, role, school…" />
+            </div>
+            <select id="seniorityFilter" class="dash-select">
+              <option value="">All Seniority</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- School Filter Pills -->
+        <div class="school-filter-bar">
+          <span class="school-filter-label">Filter by School:</span>
+          <div class="school-pills" id="schoolPills">
+            <button class="school-pill active" data-school="" style="--pill-color: #6366f1">
+              <span class="pill-dot" style="background: #6366f1"></span>
+              All Schools
+            </button>
+            <button class="school-pill" data-school="School of Engineering (SOE)" style="--pill-color: #3b82f6">
+              <span class="pill-dot" style="background: #3b82f6"></span>
+              SOE – Engineering
+            </button>
+            <button class="school-pill" data-school="School of Business (SOB)" style="--pill-color: #f59e0b">
+              <span class="pill-dot" style="background: #f59e0b"></span>
+              SOB – Business
+            </button>
+
+          </div>
+          <span id="filteredCount" class="filtered-count hidden"></span>
+        </div>
+
+        <!-- Hidden select kept for JS compatibility -->
+        <select id="schoolFilter" class="hidden" aria-hidden="true">
+          <option value="">All Schools</option>
+          <option value="School of Engineering (SOE)">School of Engineering (SOE)</option>
+          <option value="School of Business (SOB)">School of Business (SOB)</option>
+
+        </select>
+
+        <div class="dash-table-wrap">
+          <table class="dash-table" id="dashTable">
+            <thead>
+              <tr>
+                <th data-sort="timestamp">Date <span class="sort-icon">↕</span></th>
+                <th data-sort="company">Company <span class="sort-icon">↕</span></th>
+                <th data-sort="cycle">Cycle <span class="sort-icon">↕</span></th>
+                <th data-sort="role">Job Role <span class="sort-icon">↕</span></th>
+                <th data-sort="seniority">Seniority <span class="sort-icon">↕</span></th>
+                <th data-sort="school">School <span class="sort-icon">↕</span></th>
+                <th data-sort="location">Location <span class="sort-icon">↕</span></th>
+                <th data-sort="ctc">CTC <span class="sort-icon">↕</span></th>
+              </tr>
+            </thead>
+            <tbody id="dashTableBody"></tbody>
+          </table>
+        </div>
+        <div class="dash-table-footer">
+          <span id="tableResultCount">0 results</span>
+        </div>
+      </section>
+
+      <!-- Google Sheet Embed -->
+      <section class="sheet-embed-section">
+        <div class="sheet-embed-head">
+          <h3><span class="material-symbols-rounded">table_chart</span> Live Google Sheet</h3>
+          <a href="https://docs.google.com/spreadsheets/d/15sg6jNezpFpz7v-vrtFH2_vBnr8NqHNp10gK-rZrRpM/edit"
+            target="_blank" rel="noopener" class="secondary-btn"
+            style="display:inline-flex; align-items:center; gap:6px;">
+            <span class="material-symbols-rounded" style="font-size:16px;">open_in_new</span> Open in Sheets
+          </a>
+        </div>
+        <div class="sheet-embed-frame" id="liveSheetContainer">
+          <!-- Dynamically populated live spreadsheet grid -->
+        </div>
+      </section>
+
+    </div><!-- /dashboardTab -->
+
+  </main>
+
+  <script src="script.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+
+</html>

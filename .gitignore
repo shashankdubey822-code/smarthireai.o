@@ -1,0 +1,6 @@
+node_modules/
+.env
+.cursor/
+.sixth/
+scratch/
+package-lock.json
