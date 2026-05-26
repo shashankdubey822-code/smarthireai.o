@@ -1480,12 +1480,30 @@ function renderSkillsChart(data) {
         d.skills.split(/[,;|]/).forEach(s => {
             const skill = s.trim();
             if (skill && skill.length > 1) {
-                skillMap[skill] = (skillMap[skill] || 0) + 1;
+                const lowerSkill = skill.toLowerCase();
+                if (!skillMap[lowerSkill]) {
+                    skillMap[lowerSkill] = { count: 0, cases: {} };
+                }
+                skillMap[lowerSkill].count += 1;
+                skillMap[lowerSkill].cases[skill] = (skillMap[lowerSkill].cases[skill] || 0) + 1;
             }
         });
     });
 
-    const sorted = Object.entries(skillMap).sort((a, b) => b[1] - a[1]).slice(0, 12);
+    const resolvedSkillMap = {};
+    Object.entries(skillMap).forEach(([lowerSkill, info]) => {
+        let bestCase = "";
+        let maxCount = -1;
+        Object.entries(info.cases).forEach(([casing, count]) => {
+            if (count > maxCount) {
+                maxCount = count;
+                bestCase = casing;
+            }
+        });
+        resolvedSkillMap[bestCase] = info.count;
+    });
+
+    const sorted = Object.entries(resolvedSkillMap).sort((a, b) => b[1] - a[1]).slice(0, 12);
     if (sorted.length === 0) return;
 
     const existingChart = Chart.getChart(skillsCanvas);
@@ -1887,15 +1905,34 @@ function renderSpotlightCharts(data, meta) {
     // ── Top Skills ─────────────────────────────────────────────
     // SKIP: empty, "_", "—", single chars, pure numbers
     const JUNK = new Set(["-", "—", "_", "N/A", "n/a", "None", "none", "NA"]);
-    const skillFreq = {};
+    const skillMap = {};
     data.forEach(d => {
         if (!d.skills) return;
         d.skills.split(",").map(s => s.trim()).forEach(s => {
             if (!s || s.length < 2 || JUNK.has(s) || /^[\d\s]+$/.test(s)) return;
-            skillFreq[s] = (skillFreq[s] || 0) + 1;
+            const lowerSkill = s.toLowerCase();
+            if (!skillMap[lowerSkill]) {
+                skillMap[lowerSkill] = { count: 0, cases: {} };
+            }
+            skillMap[lowerSkill].count += 1;
+            skillMap[lowerSkill].cases[s] = (skillMap[lowerSkill].cases[s] || 0) + 1;
         });
     });
-    const skillTop = Object.entries(skillFreq).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+    const resolvedSkillFreq = {};
+    Object.entries(skillMap).forEach(([lowerSkill, info]) => {
+        let bestCase = "";
+        let maxCount = -1;
+        Object.entries(info.cases).forEach(([casing, count]) => {
+            if (count > maxCount) {
+                maxCount = count;
+                bestCase = casing;
+            }
+        });
+        resolvedSkillFreq[bestCase] = info.count;
+    });
+
+    const skillTop = Object.entries(resolvedSkillFreq).sort((a,b)=>b[1]-a[1]).slice(0,10);
     const sCanvas = document.getElementById("spSkillsChart");
     if (sCanvas && skillTop.length) {
         spCharts.skills = new Chart(sCanvas.getContext("2d"), {
